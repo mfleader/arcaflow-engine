@@ -1,6 +1,7 @@
 package twostep
 
 import (
+	"fmt"
 	"go.flow.arcalot.io/engine/internal/step"
 	"go.flow.arcalot.io/pluginsdk/schema"
 )
@@ -19,6 +20,7 @@ type runnableStep struct {
 
 type runningStep struct {
 	stageChangeHandler step.StageChangeHandler
+	name               chan string
 }
 
 func (r *runningStep) OnStageChange(
@@ -39,8 +41,25 @@ func (r *runningStep) OnStepComplete(
 
 }
 
+type outPut struct {
+	msg string
+}
+
 func (r *runningStep) ProvideStageInput(stage string, input map[string]any) error {
 	//r.stageChangeHandler
+	msg := fmt.Sprintf("Hello %s!", input["name"])
+	out := &outPut{msg: msg}
+	//s := &string
+	//*s = "success"
+	prev_stage := "greet"
+	prev_stage_out_id := "success"
+	r.name <- msg
+	r.stageChangeHandler.OnStepComplete(
+		nil,
+		prev_stage,
+		&prev_stage_out_id,
+		out,
+	)
 	return nil
 }
 
@@ -56,6 +75,19 @@ func (r *runningStep) Close() error {
 	return nil
 }
 
+func (r *runningStep) run() {
+	//r.
+}
+
+func (r *runnableStep) Start(input map[string]any, handler step.StageChangeHandler) (step.RunningStep, error) {
+	running_step := &runningStep{
+		stageChangeHandler: handler,
+		name:               make(chan string, 1),
+	}
+	//running_step.run()
+	return running_step, nil
+}
+
 func (r *runnableStep) Lifecycle(input map[string]any) (step.Lifecycle[step.LifecycleStageWithSchema], error) {
 	return step.Lifecycle[step.LifecycleStageWithSchema]{
 		InitialStage: string(StageIDGreet),
@@ -65,14 +97,6 @@ func (r *runnableStep) Lifecycle(input map[string]any) (step.Lifecycle[step.Life
 
 func (r *runnableStep) RunSchema() map[string]*schema.PropertySchema {
 	return nil
-}
-
-func (r *runnableStep) Start(input map[string]any, handler step.StageChangeHandler) (step.RunningStep, error) {
-	running_step := &runningStep{
-		stageChangeHandler: handler,
-	}
-
-	return running_step, nil
 }
 
 func New() step.Provider {

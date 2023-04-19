@@ -34,7 +34,7 @@ func (s *stageChangeHandler) OnStepComplete(
 			*previousStageOutputID))
 	}
 	if previousStageOutput == nil {
-		panic(fmt.Errorf("no previous stage output ID"))
+		panic(fmt.Errorf("no previous stage output"))
 	}
 	message := (*previousStageOutput).(map[string]any)["message"].(string)
 	s.message <- message
