@@ -22,7 +22,7 @@ func (s *stageChangeHandler) OnStepComplete(
 	previousStageOutputID *string,
 	previousStageOutput *any) {
 
-	if previousStage != "great" {
+	if previousStage != "greet" {
 		panic(fmt.Errorf("invalid previous stage: %s",
 			previousStage))
 	}

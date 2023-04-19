@@ -21,7 +21,26 @@ type runningStep struct {
 	stageChangeHandler step.StageChangeHandler
 }
 
+func (r *runningStep) OnStageChange(
+	step_ step.RunningStep,
+	previousStage *string,
+	previousStageOutputID *string,
+	previousStageOutput *any,
+	newStage string,
+	waitingForInput bool) {
+
+}
+
+func (r *runningStep) OnStepComplete(
+	step_ step.RunningStep,
+	previousStage string,
+	prevoiusStageOutputID *string,
+	previousStageOutput *any) {
+
+}
+
 func (r *runningStep) ProvideStageInput(stage string, input map[string]any) error {
+	//r.stageChangeHandler
 	return nil
 }
 
@@ -49,10 +68,11 @@ func (r *runnableStep) RunSchema() map[string]*schema.PropertySchema {
 }
 
 func (r *runnableStep) Start(input map[string]any, handler step.StageChangeHandler) (step.RunningStep, error) {
-
-	return &runningStep{
+	running_step := &runningStep{
 		stageChangeHandler: handler,
-	}, nil
+	}
+
+	return running_step, nil
 }
 
 func New() step.Provider {
