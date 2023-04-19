@@ -17,6 +17,26 @@ const (
 type runnableStep struct {
 }
 
+type runningStep struct {
+	stageChangeHandler step.StageChangeHandler
+}
+
+func (r *runningStep) ProvideStageInput(stage string, input map[string]any) error {
+	return nil
+}
+
+func (r *runningStep) CurrentStage() string {
+	return "derp"
+}
+
+func (r *runningStep) State() step.RunningStepState {
+	return step.RunningStepStateStarting
+}
+
+func (r *runningStep) Close() error {
+	return nil
+}
+
 func (r *runnableStep) Lifecycle(input map[string]any) (step.Lifecycle[step.LifecycleStageWithSchema], error) {
 	return step.Lifecycle[step.LifecycleStageWithSchema]{
 		InitialStage: string(StageIDGreet),
@@ -29,7 +49,10 @@ func (r *runnableStep) RunSchema() map[string]*schema.PropertySchema {
 }
 
 func (r *runnableStep) Start(input map[string]any, handler step.StageChangeHandler) (step.RunningStep, error) {
-	return nil, nil
+
+	return &runningStep{
+		stageChangeHandler: handler,
+	}, nil
 }
 
 func New() step.Provider {
@@ -55,7 +78,7 @@ func (p *twostepProvider) RunProperties() map[string]struct{} {
 var greetingLifecycleStage = step.LifecycleStage{
 	ID:           string(StageIDGreet),
 	WaitingName:  "waiting for greeting",
-	RunningName:  " greeting",
+	RunningName:  "greeting",
 	FinishedName: "greeted",
 	InputFields: map[string]struct{}{
 		"name":     {},
