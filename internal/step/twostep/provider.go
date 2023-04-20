@@ -48,18 +48,25 @@ type outPut struct {
 func (r *runningStep) ProvideStageInput(stage string, input map[string]any) error {
 	//r.stageChangeHandler
 	msg := fmt.Sprintf("Hello %s!", input["name"])
-	out := &outPut{msg: msg}
+	//out := &outPut{msg: msg}
 	//s := &string
 	//*s = "success"
 	prev_stage := "greet"
 	prev_stage_out_id := "success"
+	// this is weird
+	outputData := schema.PointerTo[any](map[string]any{
+		//"message": fmt.Sprintf("Hello %s!", name),
+		"message": msg,
+	})
 	r.name <- msg
 	r.stageChangeHandler.OnStepComplete(
 		nil,
 		prev_stage,
 		&prev_stage_out_id,
-		out,
+		outputData,
 	)
+
+	defer close(r.name)
 	return nil
 }
 
@@ -72,6 +79,7 @@ func (r *runningStep) State() step.RunningStepState {
 }
 
 func (r *runningStep) Close() error {
+
 	return nil
 }
 
