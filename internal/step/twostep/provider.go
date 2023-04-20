@@ -21,6 +21,7 @@ type runnableStep struct {
 type runningStep struct {
 	stageChangeHandler step.StageChangeHandler
 	name               chan string
+	state              step.RunningStepState
 }
 
 func (r *runningStep) OnStageChange(
@@ -41,33 +42,56 @@ func (r *runningStep) OnStepComplete(
 
 }
 
-type outPut struct {
-	msg string
-}
-
 func (r *runningStep) ProvideStageInput(stage string, input map[string]any) error {
-	//r.stageChangeHandler
-	msg := fmt.Sprintf("Hello %s!", input["name"])
-	//out := &outPut{msg: msg}
-	//s := &string
-	//*s = "success"
-	prev_stage := "greet"
-	prev_stage_out_id := "success"
-	// this is weird
-	outputData := schema.PointerTo[any](map[string]any{
-		//"message": fmt.Sprintf("Hello %s!", name),
-		"message": msg,
-	})
-	r.name <- msg
-	r.stageChangeHandler.OnStepComplete(
-		nil,
-		prev_stage,
-		&prev_stage_out_id,
-		outputData,
-	)
 
 	defer close(r.name)
-	return nil
+	switch stage {
+	case string(StageIDGreet):
+		r.state = step.RunningStepStateRunning
+		r.name <- fmt.Sprintf("%s", input["name"])
+		return nil
+	default:
+		return nil
+	}
+	//return nil
+}
+
+func (r *runningStep) run() {
+	//switch r.State() {
+	//case step.RunningStepStateWaitingForInput:
+	//case step.RunningStepStateRunning:
+	//
+	//}
+	select {
+	case name, ok := <-r.name:
+		if !ok {
+			return
+		}
+		//r.state = step.RunningStepStateRunning
+		msg := fmt.Sprintf("Hello %s!", name)
+		prev_stage := "greet"
+		prev_stage_out_id := "success"
+		outputData := schema.PointerTo[any](map[string]any{
+			"message": msg,
+		})
+		r.state = step.RunningStepStateFinished
+		r.stageChangeHandler.OnStepComplete(
+			nil,
+			prev_stage,
+			&prev_stage_out_id,
+			outputData,
+		)
+	}
+}
+
+func (r *runnableStep) Start(input map[string]any, handler step.StageChangeHandler) (step.RunningStep, error) {
+	running_step := &runningStep{
+		stageChangeHandler: handler,
+		name:               make(chan string, 1),
+		state:              step.RunningStepStateStarting,
+	}
+	go running_step.run()
+	return running_step, nil
 }
 
 func (r *runningStep) CurrentStage() string {
@@ -75,25 +99,12 @@ func (r *runningStep) CurrentStage() string {
 }
 
 func (r *runningStep) State() step.RunningStepState {
-	return step.RunningStepStateStarting
+	return r.state
 }
 
 func (r *runningStep) Close() error {
 
 	return nil
-}
-
-func (r *runningStep) run() {
-	//r.
-}
-
-func (r *runnableStep) Start(input map[string]any, handler step.StageChangeHandler) (step.RunningStep, error) {
-	running_step := &runningStep{
-		stageChangeHandler: handler,
-		name:               make(chan string, 1),
-	}
-	//running_step.run()
-	return running_step, nil
 }
 
 func (r *runnableStep) Lifecycle(input map[string]any) (step.Lifecycle[step.LifecycleStageWithSchema], error) {
