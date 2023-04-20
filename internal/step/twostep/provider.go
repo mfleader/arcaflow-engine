@@ -47,8 +47,8 @@ func (r *runningStep) ProvideStageInput(stage string, input map[string]any) erro
 	defer close(r.name)
 	switch stage {
 	case string(StageIDGreet):
-		r.state = step.RunningStepStateRunning
 		r.name <- fmt.Sprintf("%s", input["name"])
+		r.state = step.RunningStepStateRunning
 		return nil
 	default:
 		return nil
@@ -64,10 +64,12 @@ func (r *runningStep) run() {
 	//}
 	select {
 	case name, ok := <-r.name:
+		// wait until r.name channel has received data
 		if !ok {
+			// break execution if the r.name channel is closed
 			return
 		}
-		//r.state = step.RunningStepStateRunning
+		r.state = step.RunningStepStateRunning
 		msg := fmt.Sprintf("Hello %s!", name)
 		prev_stage := "greet"
 		prev_stage_out_id := "success"
