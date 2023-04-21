@@ -1,9 +1,11 @@
 package twostep
 
 import (
+	"context"
 	"fmt"
 	"go.flow.arcalot.io/engine/internal/step"
 	"go.flow.arcalot.io/pluginsdk/schema"
+	"sync"
 )
 
 type twostepProvider struct {
@@ -13,6 +15,7 @@ type StageID string
 
 const (
 	StageIDGreet StageID = "greet"
+	StageIDMeet  StageID = "meet"
 )
 
 type runnableStep struct {
@@ -22,6 +25,11 @@ type runningStep struct {
 	stageChangeHandler step.StageChangeHandler
 	name               chan string
 	state              step.RunningStepState
+	currentStage       StageID
+	lock               *sync.Mutex
+	ctx                context.Context
+	cancel             context.CancelFunc
+	inputAvailable     bool
 }
 
 func (r *runningStep) OnStageChange(
@@ -87,25 +95,35 @@ func (r *runningStep) run() {
 }
 
 func (r *runnableStep) Start(input map[string]any, handler step.StageChangeHandler) (step.RunningStep, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 	running_step := &runningStep{
 		stageChangeHandler: handler,
 		name:               make(chan string, 1),
 		state:              step.RunningStepStateStarting,
+		currentStage:       StageIDGreet,
+		lock:               &sync.Mutex{},
+		ctx:                ctx,
+		cancel:             cancel,
+		inputAvailable:     false,
 	}
 	go running_step.run()
 	return running_step, nil
 }
 
 func (r *runningStep) CurrentStage() string {
-	return "derp"
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return string(r.currentStage)
 }
 
 func (r *runningStep) State() step.RunningStepState {
+	r.lock.Lock()
+	defer r.lock.Unlock()
 	return r.state
 }
 
 func (r *runningStep) Close() error {
-
+	r.cancel()
 	return nil
 }
 

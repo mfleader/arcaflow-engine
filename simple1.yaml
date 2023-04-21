@@ -1,0 +1,23 @@
+input:
+  root: RootObject
+  objects:
+    RootObject:
+      id: RootObject
+      properties:
+        name:
+          type:
+            type_id: string
+steps:
+  example:
+    plugin: ghcr.io/janosdebugs/arcaflow-example-plugin
+    input:
+      name: !expr $.input.name
+  example2:
+    plugin: ghcr.io/janosdebugs/arcaflow-example-plugin
+    input:
+      name: !expr $.input.name
+outputs:
+  success:
+    message: !expr $.steps.example.outputs.success.message
+  success2:
+    message: !expr $.steps.example2.outputs.success.message

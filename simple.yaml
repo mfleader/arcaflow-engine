@@ -1,0 +1,16 @@
+input:
+  root: RootObject
+  objects:
+    RootObject:
+      id: RootObject
+      properties:
+        name:
+         type:
+           type_id: string
+steps:
+  example:
+    plugin: quay.io/arcalot/arcaflow-plugin-uperf:0.2.0
+    input:
+      name: !expr $.input.name
+output:
+  message: !expr $.steps.example.outputs.success.message
