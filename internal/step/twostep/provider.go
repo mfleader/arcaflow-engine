@@ -58,6 +58,8 @@ func (r *runningStep) ProvideStageInput(stage string, input map[string]any) erro
 		r.name <- fmt.Sprintf("%s", input["name"])
 		r.state = step.RunningStepStateRunning
 		return nil
+	case string(StageIDMeet):
+		return nil
 	default:
 		return nil
 	}
@@ -65,31 +67,61 @@ func (r *runningStep) ProvideStageInput(stage string, input map[string]any) erro
 }
 
 func (r *runningStep) run() {
-	//switch r.State() {
-	//case step.RunningStepStateWaitingForInput:
-	//case step.RunningStepStateRunning:
-	//
-	//}
+	//defer close(r.name)
+
+	// get input on first pass
+	waitingForInput := false
+	r.lock.Lock()
+	if !r.inputAvailable {
+		r.state = step.RunningStepStateWaitingForInput
+		waitingForInput = true
+	} else {
+		r.state = step.RunningStepStateRunning
+	}
+	r.lock.Unlock()
+
+	// notify stage handler
+	r.stageChangeHandler.OnStageChange(
+		r,
+		nil,
+		nil,
+		nil,
+		string(StageIDGreet),
+		waitingForInput)
+
 	select {
+	// wait until r.name channel has received data
 	case name, ok := <-r.name:
-		// wait until r.name channel has received data
+
+		// break execution if the r.name channel is closed
 		if !ok {
-			// break execution if the r.name channel is closed
 			return
 		}
+
+		// lock state, so this goroutine can modify it to running
+		r.lock.Lock()
 		r.state = step.RunningStepStateRunning
+		r.lock.Unlock()
+
+		// Do the thing (say hello)
 		msg := fmt.Sprintf("Hello %s!", name)
-		prev_stage := "greet"
-		prev_stage_out_id := "success"
-		outputData := schema.PointerTo[any](map[string]any{
+		output_data := schema.PointerTo[any](map[string]any{
 			"message": msg,
 		})
+		// that's it!
+
+		// Assign this stage's output id
+		output_id := schema.PointerTo("success")
+
+		r.lock.Lock()
 		r.state = step.RunningStepStateFinished
+		r.lock.Unlock()
+
 		r.stageChangeHandler.OnStepComplete(
-			nil,
-			prev_stage,
-			&prev_stage_out_id,
-			outputData,
+			r,
+			string(StageIDGreet),
+			output_id,
+			output_data,
 		)
 	}
 }
@@ -125,13 +157,6 @@ func (r *runningStep) State() step.RunningStepState {
 func (r *runningStep) Close() error {
 	r.cancel()
 	return nil
-}
-
-func (r *runnableStep) Lifecycle(input map[string]any) (step.Lifecycle[step.LifecycleStageWithSchema], error) {
-	return step.Lifecycle[step.LifecycleStageWithSchema]{
-		InitialStage: string(StageIDGreet),
-		Stages:       []step.LifecycleStageWithSchema{},
-	}, nil
 }
 
 func (r *runnableStep) RunSchema() map[string]*schema.PropertySchema {
@@ -178,4 +203,21 @@ func (p *twostepProvider) Lifecycle() step.Lifecycle[step.LifecycleStage] {
 			greetingLifecycleStage,
 		},
 	}
+}
+
+var inputSchema = map[string]*schema.PropertySchema{}
+
+var outputSchema = map[string]*schema.StepOutputSchema{}
+
+func (r *runnableStep) Lifecycle(input map[string]any) (step.Lifecycle[step.LifecycleStageWithSchema], error) {
+	return step.Lifecycle[step.LifecycleStageWithSchema]{
+		InitialStage: string(StageIDGreet),
+		Stages: []step.LifecycleStageWithSchema{
+			{
+				LifecycleStage: greetingLifecycleStage,
+				InputSchema:    inputSchema,
+				Outputs:        outputSchema,
+			},
+		},
+	}, nil
 }
