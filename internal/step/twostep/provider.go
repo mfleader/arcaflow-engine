@@ -51,19 +51,34 @@ func (r *runningStep) OnStepComplete(
 }
 
 func (r *runningStep) ProvideStageInput(stage string, input map[string]any) error {
+	// why lock?
+	r.lock.Lock()
+	defer r.lock.Unlock()
 
-	defer close(r.name)
 	switch stage {
 	case string(StageIDGreet):
-		r.name <- fmt.Sprintf("%s", input["name"])
+		if r.inputAvailable {
+			return fmt.Errorf("bug: input provided more than once")
+		}
+
+		// use greeting stage input schema to unserialize input
+		obj := schema.NewObjectSchema("input", greeting_input_schema)
+		input_data, err := obj.Unserialize(input)
+		if err != nil {
+			return err
+		}
+		r.inputAvailable = true
+
+		// this is a peculiar line b/c of the multiple reading
+		// directions
+		r.name <- input_data.(map[string]any)["name"].(string)
+		//r.name <- fmt.Sprintf("%s", input["name"])
+
 		r.state = step.RunningStepStateRunning
 		return nil
-	case string(StageIDMeet):
-		return nil
 	default:
-		return nil
+		return fmt.Errorf("bug: invalid stage %s", stage)
 	}
-	//return nil
 }
 
 func (r *runningStep) run() {
@@ -113,6 +128,7 @@ func (r *runningStep) run() {
 		// Assign this stage's output id
 		output_id := schema.PointerTo("success")
 
+		// change this step's state to finished
 		r.lock.Lock()
 		r.state = step.RunningStepStateFinished
 		r.lock.Unlock()
@@ -205,9 +221,99 @@ func (p *twostepProvider) Lifecycle() step.Lifecycle[step.LifecycleStage] {
 	}
 }
 
-var inputSchema = map[string]*schema.PropertySchema{}
+var greeting_input_schema = map[string]*schema.PropertySchema{
+	"name": schema.NewPropertySchema(
+		schema.NewStringSchema(
+			schema.PointerTo[int64](1),
+			nil,
+			nil),
+		schema.NewDisplayValue(
+			schema.PointerTo("Name"),
+			nil,
+			nil),
+		true,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	),
+	"nickname": schema.NewPropertySchema(
+		schema.NewStringSchema(
+			schema.PointerTo[int64](1),
+			nil,
+			nil),
+		schema.NewDisplayValue(
+			schema.PointerTo("Name2"),
+			nil,
+			nil),
+		false,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	),
+}
 
-var outputSchema = map[string]*schema.StepOutputSchema{}
+var greeting_output_schema = map[string]*schema.StepOutputSchema{
+	"success": {
+		// why does step output need a scope
+		SchemaValue: schema.NewScopeSchema(
+			schema.NewObjectSchema(
+				// what is the purpose of this id
+				"greeting",
+				map[string]*schema.PropertySchema{
+					"message": schema.NewPropertySchema(
+						schema.NewStringSchema(nil, nil, nil),
+						schema.NewDisplayValue(
+							schema.PointerTo("Message"),
+							nil,
+							nil,
+						),
+						true,
+						nil,
+						nil,
+						nil,
+						nil,
+						nil,
+					),
+				},
+			),
+		),
+		DisplayValue: schema.NewDisplayValue(
+			schema.PointerTo("Success"),
+			schema.PointerTo("A nice twostep!"),
+			nil,
+		),
+		ErrorValue: false,
+	},
+	"error": {
+		SchemaValue: schema.NewScopeSchema(
+			schema.NewObjectSchema(
+				"error",
+				map[string]*schema.PropertySchema{
+					"reason": schema.NewPropertySchema(
+						schema.NewStringSchema(nil, nil, nil),
+						schema.NewDisplayValue(
+							schema.PointerTo("Message"),
+							nil,
+							nil,
+						),
+						true,
+						nil,
+						nil,
+						nil,
+						nil,
+						nil,
+					),
+				},
+			),
+		),
+		DisplayValue: nil,
+		ErrorValue:   true,
+	},
+}
 
 func (r *runnableStep) Lifecycle(input map[string]any) (step.Lifecycle[step.LifecycleStageWithSchema], error) {
 	return step.Lifecycle[step.LifecycleStageWithSchema]{
@@ -215,8 +321,8 @@ func (r *runnableStep) Lifecycle(input map[string]any) (step.Lifecycle[step.Life
 		Stages: []step.LifecycleStageWithSchema{
 			{
 				LifecycleStage: greetingLifecycleStage,
-				InputSchema:    inputSchema,
-				Outputs:        outputSchema,
+				InputSchema:    greeting_input_schema,
+				Outputs:        greeting_output_schema,
 			},
 		},
 	}, nil
