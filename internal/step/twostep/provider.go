@@ -25,7 +25,7 @@ type runningStep struct {
 	stageChangeHandler step.StageChangeHandler
 	name               chan string
 	//name0              string
-	name_0         string
+	meet_name_0    chan string
 	state          step.RunningStepState
 	currentStage   StageID
 	lock           *sync.Mutex
@@ -86,6 +86,8 @@ func (r *runningStep) ProvideStageInput(stage string, input map[string]any) erro
 func (r *runningStep) run() {
 	//defer close(r.name)
 
+	//switch r.CurrentStage() {
+	//case string(StageIDGreet):
 	// get input on first pass
 	waitingForInput := false
 	r.lock.Lock()
@@ -120,11 +122,15 @@ func (r *runningStep) run() {
 		r.lock.Lock()
 		r.state = step.RunningStepStateRunning
 		r.lock.Unlock()
+		//name0 string
+		//name0 <- name
+		name2 := name
 
-		r.name_0 = name
+		r.meet_name_0 <- name
+		//r.meet_name_0 <- r.name
 
 		// Do the thing (say hello)
-		msg := fmt.Sprintf("Hello %s!", name)
+		msg := fmt.Sprintf("Hello %s!", name2)
 		output_data := schema.PointerTo[any](map[string]any{
 			"message": msg,
 		})
@@ -159,14 +165,17 @@ func (r *runningStep) run() {
 			string(StageIDMeet),
 			waitingForInput)
 
-		//case <-r.ctx.Done():
-		//	return
+	case <-r.ctx.Done():
+		return
 	}
 
-	switch r.CurrentStage() {
-	case string(StageIDMeet):
+	select {
+	case meet_name_0, ok := <-r.meet_name_0:
+		if !ok {
+			return
+		}
 		name2 := "Anon"
-		msg := fmt.Sprintf("%s meet %s.", r.name_0, name2)
+		msg := fmt.Sprintf("%s meet %s.", meet_name_0, name2)
 		output_data := schema.PointerTo[any](map[string]any{
 			"message": msg,
 		})
@@ -176,13 +185,16 @@ func (r *runningStep) run() {
 		r.state = step.RunningStepStateFinished
 		r.lock.Unlock()
 
-		r.OnStepComplete(
+		r.stageChangeHandler.OnStepComplete(
 			r,
 			string(StageIDMeet),
 			output_id,
 			output_data,
 		)
+	case <-r.ctx.Done():
+		return
 	}
+
 }
 
 func (r *runnableStep) Start(input map[string]any, handler step.StageChangeHandler) (step.RunningStep, error) {
@@ -190,6 +202,7 @@ func (r *runnableStep) Start(input map[string]any, handler step.StageChangeHandl
 	running_step := &runningStep{
 		stageChangeHandler: handler,
 		name:               make(chan string, 1),
+		meet_name_0:        make(chan string, 1),
 		state:              step.RunningStepStateStarting,
 		currentStage:       StageIDGreet,
 		lock:               &sync.Mutex{},

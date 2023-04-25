@@ -65,6 +65,6 @@ func TestProvider(t *testing.T) {
 	message := <-handler.message
 	//assert.Equals(t, message, "Hello Arca Lot!")
 
-	assert.Equals(t, message, "Arca Lot meet Anon")
+	assert.Equals(t, message, "Arca Lot meet Anon.")
 
 }
