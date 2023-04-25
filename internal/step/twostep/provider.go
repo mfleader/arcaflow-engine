@@ -24,12 +24,14 @@ type runnableStep struct {
 type runningStep struct {
 	stageChangeHandler step.StageChangeHandler
 	name               chan string
-	state              step.RunningStepState
-	currentStage       StageID
-	lock               *sync.Mutex
-	ctx                context.Context
-	cancel             context.CancelFunc
-	inputAvailable     bool
+	//name0              string
+	name_0         string
+	state          step.RunningStepState
+	currentStage   StageID
+	lock           *sync.Mutex
+	ctx            context.Context
+	cancel         context.CancelFunc
+	inputAvailable bool
 }
 
 func (r *runningStep) OnStageChange(
@@ -96,6 +98,7 @@ func (r *runningStep) run() {
 	r.lock.Unlock()
 
 	// notify stage handler
+	// why?
 	r.stageChangeHandler.OnStageChange(
 		r,
 		nil,
@@ -118,6 +121,8 @@ func (r *runningStep) run() {
 		r.state = step.RunningStepStateRunning
 		r.lock.Unlock()
 
+		r.name_0 = name
+
 		// Do the thing (say hello)
 		msg := fmt.Sprintf("Hello %s!", name)
 		output_data := schema.PointerTo[any](map[string]any{
@@ -125,17 +130,55 @@ func (r *runningStep) run() {
 		})
 		// that's it!
 
-		// Assign this stage's output id
+		//// Assign this stage's output id
+		output_id := schema.PointerTo("success")
+		//
+		//// change this step's state to finished
+		//r.lock.Lock()
+		//r.state = step.RunningStepStateFinished
+		//r.lock.Unlock()
+		//
+		//r.stageChangeHandler.OnStepComplete(
+		//	r,
+		//	string(StageIDGreet),
+		//	output_id,
+		//	output_data,
+		//)
+
+		// discuss encapsulate changing RunningStep current stage,
+		// and StageHandler.OnStageChange into a function
+		r.lock.Lock()
+		r.currentStage = StageIDMeet
+		r.lock.Unlock()
+
+		r.stageChangeHandler.OnStageChange(
+			r,
+			schema.PointerTo(string(StageIDGreet)),
+			output_id,
+			output_data,
+			string(StageIDMeet),
+			waitingForInput)
+
+		//case <-r.ctx.Done():
+		//	return
+	}
+
+	switch r.CurrentStage() {
+	case string(StageIDMeet):
+		name2 := "Anon"
+		msg := fmt.Sprintf("%s meet %s.", r.name_0, name2)
+		output_data := schema.PointerTo[any](map[string]any{
+			"message": msg,
+		})
 		output_id := schema.PointerTo("success")
 
-		// change this step's state to finished
 		r.lock.Lock()
 		r.state = step.RunningStepStateFinished
 		r.lock.Unlock()
 
-		r.stageChangeHandler.OnStepComplete(
+		r.OnStepComplete(
 			r,
-			string(StageIDGreet),
+			string(StageIDMeet),
 			output_id,
 			output_data,
 		)
@@ -199,7 +242,7 @@ func (p *twostepProvider) RunProperties() map[string]struct{} {
 	return map[string]struct{}{}
 }
 
-var greetingLifecycleStage = step.LifecycleStage{
+var greeting_lifecycle_stage = step.LifecycleStage{
 	ID:           string(StageIDGreet),
 	WaitingName:  "waiting for greeting",
 	RunningName:  "greeting",
@@ -207,6 +250,21 @@ var greetingLifecycleStage = step.LifecycleStage{
 	InputFields: map[string]struct{}{
 		"name":     {},
 		"nickname": {},
+	},
+	NextStages: []string{
+		string(StageIDGreet),
+	},
+	Fatal: false,
+}
+
+var meeting_lifecycle_stage = step.LifecycleStage{
+	ID:           string(StageIDMeet),
+	WaitingName:  "waiting for meeting",
+	RunningName:  "meting",
+	FinishedName: "met",
+	InputFields: map[string]struct{}{
+		"name":  {},
+		"name2": {},
 	},
 	NextStages: nil,
 	Fatal:      false,
@@ -216,7 +274,8 @@ func (p *twostepProvider) Lifecycle() step.Lifecycle[step.LifecycleStage] {
 	return step.Lifecycle[step.LifecycleStage]{
 		InitialStage: string(StageIDGreet),
 		Stages: []step.LifecycleStage{
-			greetingLifecycleStage,
+			greeting_lifecycle_stage,
+			meeting_lifecycle_stage,
 		},
 	}
 }
@@ -320,7 +379,7 @@ func (r *runnableStep) Lifecycle(input map[string]any) (step.Lifecycle[step.Life
 		InitialStage: string(StageIDGreet),
 		Stages: []step.LifecycleStageWithSchema{
 			{
-				LifecycleStage: greetingLifecycleStage,
+				LifecycleStage: greeting_lifecycle_stage,
 				InputSchema:    greeting_input_schema,
 				Outputs:        greeting_output_schema,
 			},

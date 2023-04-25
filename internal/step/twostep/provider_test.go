@@ -22,7 +22,7 @@ func (s *stageChangeHandler) OnStepComplete(
 	previousStageOutputID *string,
 	previousStageOutput *any) {
 
-	if previousStage != "greet" {
+	if previousStage != "meet" {
 		panic(fmt.Errorf("invalid previous stage: %s",
 			previousStage))
 	}
@@ -63,6 +63,8 @@ func TestProvider(t *testing.T) {
 			"name": "Arca Lot",
 		}))
 	message := <-handler.message
-	assert.Equals(t, message, "Hello Arca Lot!")
+	//assert.Equals(t, message, "Hello Arca Lot!")
+
+	assert.Equals(t, message, "Arca Lot meet Anon")
 
 }
